@@ -13,6 +13,7 @@ Community-driven fixes, diagnostics and workarounds for running Linux on Samsung
 |---|---|---|---|
 | Bluetooth | Intel CcP / `hci_uart` support for `INT33E4` | ✅ Validated | 767XCL, Ubuntu 26.04, Linux 7.0 |
 | Bluetooth | `ibt-20-1-3.sfi/.ddc` missing from initramfs | ✅ Validated | 767XCL, Ubuntu 26.04, Linux 7.0 |
+| Graphics | Lakefield `8086:9840`: CPU rendering | ⚠️ Reversible animation mitigation; GPU/Sober gameplay unresolved | 767XCL, Ubuntu 26.04, Linux 7.0 |
 | Audio | No published fix yet | ⏳ Pending documentation/validation | — |
 | Battery | No published fix yet | ⏳ Pending documentation/validation | — |
 | Suspend | No published fix yet | ⏳ Pending documentation/validation | — |
@@ -58,6 +59,10 @@ To remove:
 sudo ./fixes/bluetooth/install.sh --remover
 ```
 
+## Graphics diagnosis and mitigation
+
+See [fixes/graphics/README.md](fixes/graphics/README.md). This is a reversible GNOME animation workaround, not a GPU acceleration fix. Sober gameplay remains unvalidated.
+
 ## Project principles
 
 - No compatibility claims without a real report.
@@ -83,6 +88,7 @@ Coleção comunitária de correções, diagnósticos e workarounds para Linux em
 |---|---|---|---|
 | Bluetooth | Suporte Intel CcP / `hci_uart` para `INT33E4` | ✅ Validado | 767XCL, Ubuntu 26.04, Linux 7.0 |
 | Bluetooth | `ibt-20-1-3.sfi/.ddc` ausentes do initramfs | ✅ Validado | 767XCL, Ubuntu 26.04, Linux 7.0 |
+| Gráficos | Lakefield `8086:9840`: renderização pela CPU | ⚠️ Mitigação reversível das animações; GPU/jogos pendentes | 767XCL, Ubuntu 26.04, Linux 7.0 |
 | Áudio | Ainda sem correção publicada | ⏳ Aguardando documentação/validação | — |
 | Bateria | Ainda sem correção publicada | ⏳ Aguardando documentação/validação | — |
 | Suspensão | Ainda sem correção publicada | ⏳ Aguardando documentação/validação | — |
