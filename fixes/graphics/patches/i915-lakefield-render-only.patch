@@ -1,0 +1,263 @@
+SPDX-License-Identifier: GPL-2.0-only
+Lakefield render-only changes for Ubuntu Linux 7.0.0-38.38.
+
+--- a/intel_device_info.h
++++ b/intel_device_info.h
+@@ -81,6 +81,7 @@
+ 	INTEL_ICELAKE,
+ 	INTEL_ELKHARTLAKE,
+ 	INTEL_JASPERLAKE,
++	INTEL_LAKEFIELD,
+ 	/* gen12 */
+ 	INTEL_TIGERLAKE,
+ 	INTEL_ROCKETLAKE,
+--- a/intel_device_info.c
++++ b/intel_device_info.c
+@@ -65,6 +65,7 @@
+ 	PLATFORM_NAME(ICELAKE),
+ 	PLATFORM_NAME(ELKHARTLAKE),
+ 	PLATFORM_NAME(JASPERLAKE),
++	PLATFORM_NAME(LAKEFIELD),
+ 	PLATFORM_NAME(TIGERLAKE),
+ 	PLATFORM_NAME(ROCKETLAKE),
+ 	PLATFORM_NAME(DG1),
+--- a/i915_pci.c
++++ b/i915_pci.c
+@@ -614,6 +614,29 @@
+ 		BIT(RCS0) | BIT(BCS0) | BIT(VECS0) | BIT(VCS0) | BIT(VCS2),
+ };
+ 
++/*
++ * Experimental Lakefield render-only bring-up, not a production driver.
++ * Intel LKF PRM Vol 4 (May 2021), pp. 3 and 7:
++ *   device 9840, Gen11 1x8x8, 36-bit virtual / 39-bit physical addresses.
++ * Intentionally leave the display PCI table unchanged. Do not claim KMS.
++ * Restrict engines and disable power-management/GuC during initial bring-up.
++ * This descriptor does NOT establish correctness of all Gen11 workarounds.
++ */
++static const struct intel_device_info lkf_experimental_info = {
++	GEN11_FEATURES,
++	PLATFORM(INTEL_LAKEFIELD),
++	.gt = 2,
++	.require_force_probe = 1,
++	.platform_engine_mask = BIT(RCS0) | BIT(BCS0),
++	.__runtime.ppgtt_size = 36,
++	.dma_mask_size = 39,
++	.memory_regions = BIT(INTEL_REGION_SMEM), /* Preserve BIOS stolen memory. */
++	.has_gt_uc = 0,
++	.has_rc6 = 0,
++	.has_rps = 0,
++	.has_runtime_pm = 0,
++};
++
+ static const struct intel_device_info ehl_info = {
+ 	GEN11_FEATURES,
+ 	PLATFORM(INTEL_ELKHARTLAKE),
+@@ -792,6 +815,13 @@
+  * PCI ID matches, otherwise we'll use the wrong info struct above.
+  */
+ static const struct pci_device_id pciidlist[] = {
++	/* Test machine only: Samsung 144d:c18b; requires force_probe=9840. */
++	{
++		.vendor = PCI_VENDOR_ID_INTEL, .device = 0x9840,
++		.subvendor = 0x144d, .subdevice = 0xc18b,
++		.class = PCI_BASE_CLASS_DISPLAY << 16, .class_mask = 0xff << 16,
++		.driver_data = (kernel_ulong_t)&lkf_experimental_info,
++	},
+ 	INTEL_I830_IDS(INTEL_VGA_DEVICE, &i830_info),
+ 	INTEL_I845G_IDS(INTEL_VGA_DEVICE, &i845g_info),
+ 	INTEL_I85X_IDS(INTEL_VGA_DEVICE, &i85x_info),
+--- a/i915_perf.c
++++ b/i915_perf.c
+@@ -4952,6 +4952,10 @@
+ 	enum intel_platform platform = INTEL_INFO(i915)->platform;
+ 
+ 	switch (platform) {
++	case INTEL_LAKEFIELD:
++		/* OA counters are deliberately unavailable during render bring-up. */
++		break;
++
+ 	case INTEL_HASWELL:
+ 		oa_format_add(perf, I915_OA_FORMAT_A13);
+ 		oa_format_add(perf, I915_OA_FORMAT_A13);
+--- a/i915_module.c
++++ b/i915_module.c
+@@ -127,3 +127,6 @@
+ 
+ MODULE_DESCRIPTION(DRIVER_DESC);
+ MODULE_LICENSE("GPL and additional rights");
++
++/* Identifies the uninstalled local bring-up artifact. */
++MODULE_INFO(lkf_experiment, "render-only-preserve-bootfb-9840-samsung-c18b-v2");
+--- a/i915_driver.c
++++ b/i915_driver.c
+@@ -504,9 +504,16 @@
+ 	if (ret)
+ 		goto err_perf;
+ 
+-	ret = aperture_remove_conflicting_pci_devices(pdev, dev_priv->drm.driver->name);
+-	if (ret)
+-		goto err_ggtt;
++	/* Local LKF render-only experiment: keep simpledrm scanout alive.
++	 * init_ggtt() reserves the firmware framebuffer's GGTT range before
++	 * error-capture scratch mappings or GEM allocations may overwrite it.
++	 * No LKF display descriptor is registered and stolen memory is unused.
++	 */
++	if (INTEL_INFO(dev_priv)->platform != INTEL_LAKEFIELD) {
++		ret = aperture_remove_conflicting_pci_devices(pdev, dev_priv->drm.driver->name);
++		if (ret)
++			goto err_ggtt;
++	}
+ 
+ 	ret = i915_ggtt_init_hw(dev_priv);
+ 	if (ret)
+--- a/gt/intel_gtt.h
++++ b/gt/intel_gtt.h
+@@ -404,6 +404,8 @@
+ 	struct mutex error_mutex;
+ 	struct drm_mm_node error_capture;
+ 	struct drm_mm_node uc_fw;
++	/* Reserved firmware scanout mapping, experimental LKF only. */
++	struct drm_mm_node lkf_boot_fb;
+ 
+ 	/** List of GTs mapping this GGTT */
+ 	struct list_head gt_list;
+--- a/gt/intel_ggtt.c
++++ b/gt/intel_ggtt.c
+@@ -30,6 +30,8 @@
+ #include "i915_utils.h"
+ #include "i915_vgpu.h"
+ 
++#include <linux/platform_device.h>
++
+ #include "intel_gtt.h"
+ #include "gen8_ppgtt.h"
+ #include "intel_engine_pm.h"
+@@ -113,6 +115,32 @@
+  * Suspend the memory mappings for all objects mapped to HW via the GGTT or a
+  * DPT page table.
+  */
++/* A render-only LKF test must not erase firmware scanout translations
++ * during full-address-space suspend/resume cleanup either.
++ */
++static void lkf_safe_clear_all(struct i915_address_space *vm)
++{
++	struct i915_ggtt *ggtt;
++	struct drm_mm_node *fb;
++	u64 end;
++
++	if (!vm->is_ggtt || INTEL_INFO(vm->i915)->platform != INTEL_LAKEFIELD) {
++		vm->clear_range(vm, 0, vm->total);
++		return;
++	}
++	ggtt = i915_vm_to_ggtt(vm);
++	fb = &ggtt->lkf_boot_fb;
++	if (!drm_mm_node_allocated(fb)) {
++		vm->clear_range(vm, 0, vm->total);
++		return;
++	}
++	end = fb->start + fb->size;
++	if (fb->start)
++		vm->clear_range(vm, 0, fb->start);
++	if (end < vm->total)
++		vm->clear_range(vm, end, vm->total - end);
++}
++
+ void i915_ggtt_suspend_vm(struct i915_address_space *vm, bool evict_all)
+ {
+ 	struct i915_vma *vma, *vn;
+@@ -169,7 +197,7 @@
+ 		i915_gem_object_unlock(obj);
+ 	}
+ 
+-	vm->clear_range(vm, 0, vm->total);
++	lkf_safe_clear_all(vm);
+ 
+ 	vm->skip_pte_rewrite = save_skip_rewrite;
+ 
+@@ -850,12 +878,58 @@
+ 		drm_mm_remove_node(&ggtt->uc_fw);
+ }
+ 
++/* Preserve the exact firmware framebuffer range, not an arbitrary GPU ID
++ * alias. Only applies to the opt-in Samsung LKF render-only descriptor.
++ * The child platform resource must lie fully inside this GPU's aperture.
++ */
++static int lkf_reserve_boot_fb(struct i915_ggtt *ggtt)
++{
++	struct drm_i915_private *i915 = ggtt->vm.i915;
++	struct device *child;
++	struct resource *res;
++	u64 start, end;
++	int ret;
++
++	if (INTEL_INFO(i915)->platform != INTEL_LAKEFIELD)
++		return 0;
++
++	child = device_find_child_by_name(i915->drm.dev, "simple-framebuffer.0");
++	if (!child)
++		return -ENODEV;
++	res = platform_get_resource(to_platform_device(child), IORESOURCE_MEM, 0);
++	if (!res || res->end < res->start ||
++	    res->start < ggtt->gmadr.start || res->end > ggtt->gmadr.end) {
++		put_device(child);
++		return -EINVAL;
++	}
++	start = round_down(res->start - ggtt->gmadr.start, (u64)PAGE_SIZE);
++	end = round_up(res->end - ggtt->gmadr.start + 1, (u64)PAGE_SIZE);
++	put_device(child);
++	if (end <= start || end >= ggtt->mappable_end || end >= ggtt->vm.total - PAGE_SIZE)
++		return -EINVAL;
++
++	ggtt->lkf_boot_fb.start = start;
++	ggtt->lkf_boot_fb.size = end - start;
++	ggtt->lkf_boot_fb.color = I915_COLOR_UNEVICTABLE;
++	ret = drm_mm_reserve_node(&ggtt->vm.mm, &ggtt->lkf_boot_fb);
++	if (!ret)
++		drm_info(&i915->drm, "LKF experiment: preserving firmware framebuffer GGTT [%llx, %llx)\n", start, end);
++	return ret;
++}
++
++static void lkf_release_boot_fb(struct i915_ggtt *ggtt)
++{
++	if (drm_mm_node_allocated(&ggtt->lkf_boot_fb))
++		drm_mm_remove_node(&ggtt->lkf_boot_fb);
++}
++
+ static void cleanup_init_ggtt(struct i915_ggtt *ggtt)
+ {
+ 	ggtt_release_guc_top(ggtt);
+ 	if (drm_mm_node_allocated(&ggtt->error_capture))
+ 		drm_mm_remove_node(&ggtt->error_capture);
+ 	mutex_destroy(&ggtt->error_mutex);
++	lkf_release_boot_fb(ggtt);
+ }
+ 
+ static int init_ggtt(struct i915_ggtt *ggtt)
+@@ -888,6 +962,9 @@
+ 		return ret;
+ 
+ 	mutex_init(&ggtt->error_mutex);
++	ret = lkf_reserve_boot_fb(ggtt);
++	if (ret)
++		goto err;
+ 	if (ggtt->mappable_end) {
+ 		/*
+ 		 * Reserve a mappable slot for our lockless error capture.
+@@ -1101,6 +1178,7 @@
+ 	if (drm_mm_node_allocated(&ggtt->error_capture))
+ 		drm_mm_remove_node(&ggtt->error_capture);
+ 	mutex_destroy(&ggtt->error_mutex);
++	lkf_release_boot_fb(ggtt);
+ 
+ 	ggtt_release_guc_top(ggtt);
+ 	intel_vgt_deballoon(ggtt);
+@@ -1626,7 +1704,7 @@
+ 	}
+ 
+ 	/* First fill our portion of the GTT with scratch pages */
+-	vm->clear_range(vm, 0, vm->total);
++	lkf_safe_clear_all(vm);
+ 
+ 	/* clflush objects bound into the GGTT and rebind them. */
+ 	list_for_each_entry(vma, &vm->bound_list, vm_link) {

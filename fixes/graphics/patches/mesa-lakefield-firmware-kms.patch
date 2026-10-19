@@ -1,0 +1,612 @@
+--- a/include/pci_ids/iris_pci_ids.h
++++ b/include/pci_ids/iris_pci_ids.h
+@@ -310,3 +310,6 @@
+ CHIPSET(0xd743, nvl_s_hx_ul, "NVL-HX", "Intel(R) Graphics", FORCE_PROBE)
+ CHIPSET(0xd744, nvl_s_hx_ul, "NVL-UL", "Intel(R) Graphics", FORCE_PROBE)
+ CHIPSET(0xd745, nvl_s_hx_ul, "NVL-HX", "Intel(R) Graphics", FORCE_PROBE)
++
++/* Local experiment, explicitly opt-in; not validated upstream support. */
++CHIPSET(0x9840, lkf_experimental, "Lakefield experimental", "Intel(R) UHD Graphics", FORCE_PROBE)
+--- a/src/egl/drivers/dri2/platform_drm.c
++++ b/src/egl/drivers/dri2/platform_drm.c
+@@ -597,6 +597,36 @@
+    if (loader_is_device_render_capable(fd_display_gpu))
+       return fd_display_gpu;
+ 
++   /* Private Lakefield experiment: generic render-only discovery covers
++    * platform GPUs, while this renderer is a PCI GPU. Both endpoint drivers
++    * and the exact Samsung PCI subsystem are checked before pairing them.
++    */
++   const char *enabled = getenv("LKF_EXPERIMENTAL_FIRMWARE_KMS");
++   const char *node = getenv("LKF_RENDER_NODE");
++   if (enabled && !strcmp(enabled, "1") && node) {
++      drmVersionPtr version = drmGetVersion(fd_display_gpu);
++      bool valid = version && !strcmp(version->name, "simpledrm");
++      drmFreeVersion(version);
++      int gpu = valid ? open(node, O_RDWR | O_CLOEXEC) : -1;
++      if (gpu >= 0) {
++         drmDevicePtr device = NULL;
++         valid = drmGetDevice2(gpu, 0, &device) == 0 &&
++            device->bustype == DRM_BUS_PCI &&
++            device->deviceinfo.pci->vendor_id == 0x8086 &&
++            device->deviceinfo.pci->device_id == 0x9840 &&
++            device->deviceinfo.pci->subvendor_id == 0x144d &&
++            device->deviceinfo.pci->subdevice_id == 0xc18b;
++         drmFreeDevice(&device);
++         version = drmGetVersion(gpu);
++         valid = valid && version && !strcmp(version->name, "i915");
++         drmFreeVersion(version);
++         if (valid)
++            return gpu;
++         close(gpu);
++      }
++      return -1;
++   }
++
+    /* Display-only device, so return a compatible render-only device. */
+    return dri_query_compatible_render_only_device_fd(fd_display_gpu);
+ }
+--- a/src/gallium/drivers/iris/iris_resource.c
++++ b/src/gallium/drivers/iris/iris_resource.c
+@@ -765,6 +765,12 @@
+                              const struct pipe_resource *templ,
+                              uint64_t modifier, uint32_t row_pitch_B)
+ {
++   /* Firmware scanout accepts linear, uncompressed buffers only. */
++   if (screen->lkf_firmware_kms && (templ->bind & PIPE_BIND_SCANOUT)) {
++      if (modifier != DRM_FORMAT_MOD_INVALID && modifier != DRM_FORMAT_MOD_LINEAR)
++         return false;
++      modifier = DRM_FORMAT_MOD_LINEAR;
++   }
+    res->mod_info = isl_drm_modifier_get_info(modifier);
+ 
+    if (modifier != DRM_FORMAT_MOD_INVALID && res->mod_info == NULL)
+--- a/src/gallium/drivers/iris/iris_screen.c
++++ b/src/gallium/drivers/iris/iris_screen.c
+@@ -840,3 +840,31 @@
+ 
+    return pscreen;
+ }
++
++/* Local opt-in experiment: render on i915, export through the firmware KMS
++ * device. Existing generic PRIME export code handles the distinct DRM fd.
++ * No native panel programming, scanout test or conformance is implied.
++ */
++struct pipe_screen *
++iris_screen_create_lkf_firmware_kms(int gpu_fd, int kms_fd,
++                                  const struct pipe_screen_config *config)
++{
++   int output_fd = os_dupfd_cloexec(kms_fd);
++   if (output_fd < 0)
++      return NULL;
++   struct pipe_screen *base = iris_screen_create(gpu_fd, config);
++   if (!base) {
++      close(output_fd);
++      return NULL;
++   }
++   struct iris_screen *screen = (struct iris_screen *)base;
++   if (screen->devinfo->platform != INTEL_PLATFORM_LKF) {
++      base->destroy(base);
++      close(output_fd);
++      return NULL;
++   }
++   close(screen->winsys_fd);
++   screen->winsys_fd = output_fd;
++   screen->lkf_firmware_kms = true;
++   return base;
++}
+--- a/src/gallium/drivers/iris/iris_screen.h
++++ b/src/gallium/drivers/iris/iris_screen.h
+@@ -184,6 +184,7 @@
+     * by iris_screen, can be a different DRM instance than fd.
+     */
+    int winsys_fd;
++   bool lkf_firmware_kms;
+ 
+    struct iris_vtable vtbl;
+ 
+@@ -262,6 +263,10 @@
+ struct pipe_screen *
+ iris_screen_create(int fd, const struct pipe_screen_config *config);
+ 
++struct pipe_screen *
++iris_screen_create_lkf_firmware_kms(int gpu_fd, int kms_fd,
++                                  const struct pipe_screen_config *config);
++
+ void iris_screen_destroy(struct iris_screen *screen);
+ 
+ UNUSED static inline struct pipe_screen *
+--- a/src/gallium/winsys/iris/drm/iris_drm_winsys.c
++++ b/src/gallium/winsys/iris/drm/iris_drm_winsys.c
+@@ -31,6 +31,8 @@
+ 
+ #include "iris_drm_public.h"
+ extern struct pipe_screen *iris_screen_create(int fd, const struct pipe_screen_config *config);
++extern struct pipe_screen *iris_screen_create_lkf_firmware_kms(int gpu_fd, int kms_fd,
++                                                            const struct pipe_screen_config *config);
+ 
+ struct pipe_screen *
+ iris_drm_screen_create(int fd, const struct pipe_screen_config *config)
+--- a/src/intel/dev/gen_wa_helpers.py
++++ b/src/intel/dev/gen_wa_helpers.py
+@@ -198,6 +198,7 @@
+                      "INTEL_PLATFORM_GLK" : 90,
+                      "INTEL_PLATFORM_CFL" : 90,
+                      "INTEL_PLATFORM_ICL" : 110,
++                     "INTEL_PLATFORM_LKF" : 110,
+                      "INTEL_PLATFORM_EHL" : 110,
+                      "INTEL_PLATFORM_TGL" : 120,
+                      "INTEL_PLATFORM_RKL" : 120,
+--- a/src/intel/dev/intel_device_info.c
++++ b/src/intel/dev/intel_device_info.c
+@@ -865,6 +865,18 @@
+    .num_subslices = _subslices,                                  \
+    .max_eus_per_subslice = 8,                                    \
+    .simulator_id = 19
++
++/* Experimental LKF descriptor: Intel LKF PRM Vol 4, May 2021, pp. 3/7.
++ * Uses the shared Gen11 instruction/compiler configuration for initial testing.
++ * Workaround inheritance is provisional, not conformance-validated support.
++ * Kernel-provided topology, timestamp frequency and GTT size override defaults.
++ */
++static const struct intel_device_info intel_device_info_lkf_experimental = {
++   GFX11_FEATURES, GFX11_MAX_THREADS, GFX11_URB_MIN_MAX_ENTRIES,
++   .platform = INTEL_PLATFORM_LKF,
++   .gt = 2, .num_slices = 1, .num_subslices = {8},
++   .l3_banks = 8, .max_eus_per_subslice = 8,
++};
+ 
+ static const struct intel_device_info intel_device_info_icl_gt2 = {
+    ICL_CONFIG(2, 1, subslices(8), 8),
+--- a/src/intel/dev/intel_device_info.py
++++ b/src/intel/dev/intel_device_info.py
+@@ -117,6 +117,7 @@
+       "INTEL_PLATFORM_GLK",
+       "INTEL_PLATFORM_CFL",
+       "INTEL_PLATFORM_ICL",
++      "INTEL_PLATFORM_LKF",
+       "INTEL_PLATFORM_EHL",
+       "INTEL_PLATFORM_TGL",
+       "INTEL_PLATFORM_RKL",
+--- a/src/intel/dev/mesa_defs.json
++++ b/src/intel/dev/mesa_defs.json
+@@ -8,6 +8,13 @@
+         "steppings": "all"
+       },
+       "INTEL_PLATFORM_ICL": {
++        "ids": [
++          220579888,
++          1406399397
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
+         "ids": [
+           220579888,
+           1406399397
+@@ -68,6 +75,14 @@
+           14010679587
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          220856683,
++          1406499909,
++          1406499910
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -80,6 +95,13 @@
+         "steppings": "all"
+       },
+       "INTEL_PLATFORM_ICL": {
++        "ids": [
++          220981846,
++          1406531043
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
+         "ids": [
+           220981846,
+           1406531043
+@@ -136,6 +158,14 @@
+           14010679887
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1207137018,
++          14010892032,
++          14010894115
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -154,6 +184,14 @@
+           1407399546
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1305770284,
++          1407391552,
++          1407399546
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -166,6 +204,14 @@
+         "steppings": "all"
+       },
+       "INTEL_PLATFORM_ICL": {
++        "ids": [
++          1306055483,
++          1408615042,
++          1408626922
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
+         "ids": [
+           1306055483,
+           1408615042,
+@@ -191,6 +237,15 @@
+           1409440821
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1306463417,
++          1409433168,
++          1409440716,
++          1409440821
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -201,6 +256,12 @@
+           1405862851
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1405862851
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -213,6 +274,14 @@
+         "steppings": "all"
+       },
+       "INTEL_PLATFORM_ICL": {
++        "ids": [
++          1406306137,
++          1406340900,
++          1406340945
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
+         "ids": [
+           1406306137,
+           1406340900,
+@@ -353,6 +422,13 @@
+           14010882322
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1406614636,
++          14010882322
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -370,6 +446,13 @@
+           1406697800
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1406697149,
++          1406697800
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -380,12 +463,25 @@
+           1407264820
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1407264820
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+   "1406756463": {
+     "mesa_platforms": {
+       "INTEL_PLATFORM_ICL": {
++        "ids": [
++          1406756463,
++          1406966074
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
+         "ids": [
+           1406756463,
+           1406966074
+@@ -409,6 +505,14 @@
+           1407001392
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1406950495,
++          1407001311,
++          1407001392
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -421,6 +525,13 @@
+         "steppings": "all"
+       },
+       "INTEL_PLATFORM_ICL": {
++        "ids": [
++          1407240128,
++          1407243700
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
+         "ids": [
+           1407240128,
+           1407243700
+@@ -501,6 +612,13 @@
+           1407712265
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1407685933,
++          1407712265
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -622,6 +740,14 @@
+           1408941138
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1408908852,
++          1408937953,
++          1408941138
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -860,12 +986,26 @@
+           14010679444
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1405862871,
++          1604061319,
++          14011047124
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+   "1604366864": {
+     "mesa_platforms": {
+       "INTEL_PLATFORM_ICL": {
++        "ids": [
++          1406179177
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
+         "ids": [
+           1406179177
+         ],
+@@ -1106,6 +1246,13 @@
+           14010894078
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1805811773,
++          14010894078
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -1118,6 +1265,14 @@
+         "steppings": "all"
+       },
+       "INTEL_PLATFORM_ICL": {
++        "ids": [
++          1407058870,
++          1505013527,
++          1805992985
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
+         "ids": [
+           1407058870,
+           1505013527,
+@@ -1137,12 +1292,29 @@
+           1806068545
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1407385565,
++          1407391097,
++          1407391147,
++          1806068545
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+   "1806230709": {
+     "mesa_platforms": {
+       "INTEL_PLATFORM_ICL": {
++        "ids": [
++          1407520876,
++          1407526531,
++          1806230709
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
+         "ids": [
+           1407520876,
+           1407526531,
+@@ -1411,6 +1583,15 @@
+           2201039848
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1406558893,
++          1406569694,
++          1406569713,
++          2201039848
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -1463,6 +1644,13 @@
+           2204296706
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          1407400009,
++          2204296706
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -1500,6 +1688,13 @@
+       "INTEL_PLATFORM_RPL": {
+         "ids": [
+           14011099616
++        ],
++        "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          14010013414,
++          14011100847
+         ],
+         "steppings": "all"
+       }
+@@ -2097,6 +2292,14 @@
+           22014064407
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          22014034764,
++          22014049738,
++          22014049808
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -5021,6 +5224,14 @@
+           14017157155
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          14017130196,
++          14017130208,
++          14017142842
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -5381,6 +5592,14 @@
+           22010893396
+         ],
+         "steppings": "all"
++      },
++      "INTEL_PLATFORM_LKF": {
++        "ids": [
++          16012351604,
++          16012576933,
++          22010893396
++        ],
++        "steppings": "all"
+       }
+     }
+   },
+@@ -5969,4 +6188,4 @@
+       }
+     }
+   }
+-}
+\ No newline at end of file
++}
+--- a/src/intel/vulkan/anv_physical_device.c
++++ b/src/intel/vulkan/anv_physical_device.c
+@@ -1116,6 +1116,11 @@
+       .subminor = 0,
+       .patch = 0,
+    };
++   /* The local Lakefield enablement has functional tests, not a CTS pass.
++    * Do not inherit another platform's conformance certification metadata.
++    */
++   if (pdevice->info.platform == INTEL_PLATFORM_LKF)
++      p->conformanceVersion = (VkConformanceVersion) { 0, 0, 0, 0 };
+ 
+    p->denormBehaviorIndependence =
+       VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_ALL;

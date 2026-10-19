@@ -1,0 +1,14 @@
+[Unit]
+Description=Experimental Lakefield GPU rendering with preserved firmware display
+After=local-fs.target systemd-udevd.service
+Before=display-manager.service gdm.service
+ConditionPathExists=/opt/galaxybook-lakefield/i915.ko
+
+[Service]
+Type=oneshot
+ExecStart=/opt/galaxybook-lakefield/start-graphics.sh
+RemainAfterExit=yes
+TimeoutStartSec=65
+
+[Install]
+WantedBy=graphical.target

@@ -13,6 +13,7 @@ Community-driven fixes, diagnostics and workarounds for running Linux on Samsung
 |---|---|---|---|
 | Bluetooth | Intel CcP / `hci_uart` support for `INT33E4` | ✅ Validated | 767XCL, Ubuntu 26.04, Linux 7.0 |
 | Bluetooth | `ibt-20-1-3.sfi/.ddc` missing from initramfs | ✅ Validated | 767XCL, Ubuntu 26.04, Linux 7.0 |
+| Graphics | Lakefield `8086:9840` GPU rendering | ⚠️ Experimental; validated after reboot | 767XCL / 144d:c18b, Ubuntu 26.04.1, Linux 7.0.0-38 |
 | Audio | No published fix yet | ⏳ Pending documentation/validation | — |
 | Battery | No published fix yet | ⏳ Pending documentation/validation | — |
 | Suspend | No published fix yet | ⏳ Pending documentation/validation | — |
@@ -58,6 +59,10 @@ To remove:
 sudo ./fixes/bluetooth/install.sh --remover
 ```
 
+## Experimental graphics acceleration
+
+See [graphics installation, verification and rollback](fixes/graphics/README.md). Exact-machine i915 + Mesa patches enable GPU rendering while preserving firmware display. Validated after reboot; pinned kernel; Sober remains unvalidated.
+
 ## Project principles
 
 - No compatibility claims without a real report.
@@ -83,6 +88,7 @@ Coleção comunitária de correções, diagnósticos e workarounds para Linux em
 |---|---|---|---|
 | Bluetooth | Suporte Intel CcP / `hci_uart` para `INT33E4` | ✅ Validado | 767XCL, Ubuntu 26.04, Linux 7.0 |
 | Bluetooth | `ibt-20-1-3.sfi/.ddc` ausentes do initramfs | ✅ Validado | 767XCL, Ubuntu 26.04, Linux 7.0 |
+| Gráficos | Renderização na GPU Lakefield `8086:9840` | ⚠️ Experimental; validada após reinício | 767XCL / 144d:c18b, Ubuntu 26.04.1, Linux 7.0.0-38 |
 | Áudio | Ainda sem correção publicada | ⏳ Aguardando documentação/validação | — |
 | Bateria | Ainda sem correção publicada | ⏳ Aguardando documentação/validação | — |
 | Suspensão | Ainda sem correção publicada | ⏳ Aguardando documentação/validação | — |
@@ -106,3 +112,7 @@ sudo ./fixes/bluetooth/install.sh --remover
 ## Importante
 
 Este projeto não é oficial da Samsung nem do Ubuntu. Faça backup e leia o script antes de executá-lo. As correções mexem em componentes de baixo nível do sistema e podem deixar de funcionar após atualizações de kernel.
+
+### Aceleração gráfica experimental
+
+[Instalação, verificação, limites e reversão dos gráficos](fixes/graphics/README.md). Patches i915 + Mesa para o modelo exato, com validação após reinício e kernel específico. Sober permanece sem validação de funcionamento.
