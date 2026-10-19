@@ -25,7 +25,7 @@ Sistema: Ubuntu 26.04.1, Linux 7.0.0-38-generic, GNOME 50.1 / Wayland; Mesa priv
 
 Controle nativo do painel DSI não produziu imagem utilizável e não integra esta solução. Um primeiro serviço de inicialização esperava o monitor de confirmação e atingia timeout; a versão publicada inicia esse monitor sem bloquear. Testes de aplicações feitos antes de reiniciar o compositor ainda podiam cair em llvmpipe; os resultados finais acima são da sessão posterior ao reinício.
 
-Não se afirma suporte upstream, certificação de toda a API, estabilidade prolongada, suspensão/retomada, vídeo acelerado ou compatibilidade com toda experiência Roblox. A integração separada do [Sober](../sober/README.md) foi depois validada com abertura normal e relato do usuário de que conseguiu jogar. Não há alegação de suporte a outra combinação de máquina/kernel. Não se publicam logs brutos com identificadores pessoais ou de sessões.
+Não se afirma suporte upstream, certificação de toda a API, estabilidade prolongada, suspensão/retomada ou compatibilidade com toda experiência Roblox. A integração separada do [Sober](../sober/README.md) foi depois validada com abertura normal e relato do usuário de que conseguiu jogar. Não há alegação de suporte a outra combinação de máquina/kernel. Não se publicam logs brutos com identificadores pessoais ou de sessões.
 
 
 ## Integração adicional, noite de 18 para 19/10/2026
@@ -49,4 +49,28 @@ Diagnóstico adicional do Avatar World: falhas repetidas SIGSEGV em libc strlen,
 - Segunda conta local: teste nativo GLES3 com1024 pixels corretos e teste do mesmo shader dentro do sandbox Sober; Vulkan Intel executou comando e conferiu memória0x4c4b4632. Teste sem sessão gráfica produziu aviso do portal de documentos/FUSE, mas os testes gráficos passaram; abertura real da interface deve ser confirmada após novo login.
 - Configuração efetiva de user@.service passou systemd-analyze verify. A lógica de contas futuras foi instalada; não se criou conta fictícia nem se alegou teste visual em todas as contas.
 - Waydroid de outra conta ainda ativo foi identificado; a sessão antiga foi encerrada sem apagar seus dados. Lançador informa a limitação de uma sessão Android ativa.
-- VA-API: reprodução de falha também diretamente no render node, além de Wayland. Ausência dos plugins Intel confirmada; máscara do módulo limita motores a RCS0/BCS0. Não há alegação de vídeo acelerado.
+- Diagnóstico inicial VA-API: falha também diretamente no render node, além de Wayland; plugins ausentes e máscara V2 limitada a RCS0/BCS0. Resolvido e validado no teste V4 abaixo.
+
+
+## Motores dedicados de vídeo V4 — 19/10/2026
+
+- Reinício controlado com backup V2, proteção de um boot e reversão em 12 minutos. Imagem aparentemente normal confirmada pelo usuário; confirmação feita após os testes abaixo, temporizador cancelado. Painel segue simpledrm; não foi reintroduzido controle nativo DSI.
+- Motores lógicos expostos: rcs0, bcs0, vcs0 e vcs1. Kernel V4 SHA-256: `9868c529ffcaabfdf6b3e210ec97adde2855b6e0045bf459930ecea53d18d808`.
+- Intel media-driver 26.1.5 modificado, GMM22.9.0; GLIBC máxima2.34 e GLIBCXX máxima3.4.29. Plugin com RUNPATH relativo, sem dependência de diretório pessoal. Descritor Lakefield próprio, sem disfarçar o PCI como Ice Lake. Heap MOS limitado ao GTT de 68719476736 bytes confirmado por consulta ao kernel.
+- Vídeos sintéticos: download obrigatório de quadros VAAPI, comparação de MD5 de cada quadro com decodificação por CPU e contador DRM de vídeo do processo maior que zero. Nenhuma aceitação de fallback por software.
+
+| Formato | Resolução | Quadros | Tempo observado no motor dedicado | Pixels |
+|---|---:|---:|---:|---|
+| H.264 Constrained Baseline |1920×1080|36|186865704 ns|Todos idênticos|
+| H.264 High |1280×720|24|70582538 ns|Todos idênticos|
+| HEVC Main 8 bits |1280×720|24|61325064 ns|Todos idênticos|
+| VP9 Profile0 |1280×720|24|50704272 ns|Todos idênticos|
+
+Esses tempos são contadores acumulados do teste, não medidas comparativas de desempenho. O teste H.264 foi repetido usando o pacote instalado em /opt e passou novamente. `vainfo` também passou por Wayland com o ambiente novo. GNOME continuou usando Mesa privada com trabalho no motor de renderização e GLX `Accelerated: yes`. Não foram observados GPU hangs/resets no log desse boot durante os testes.
+
+- Flatpak GNOME51/Sober: consulta VA-API, criação de configuração de decodificação H.264 High e superfície GPU1920×1080 aprovadas como UID de segunda conta. Usa a extensão de sistema, sem cópia na pasta dessa conta.
+- Snap Firefox/core24 e Remmina/core22: os mesmos testes de inicialização/configuração/superfície passaram dentro dos confinamentos e cadeias gráficas normais.
+- Segunda conta também passou consulta/configuração/superfície VA-API nativa com seu próprio ambiente/ACL. Não se alegou abertura visual de cada aplicativo nessa sessão.
+- Não se afirma decodificação real dentro de cada sandbox: o FFmpeg do SDK22 instalado não inclui os decodificadores VA-API necessários. Os testes de sandbox acima comprovam descoberta e operação da API/superfície, enquanto a decodificação com conferência integral de pixels foi comprovada no host.
+
+Codificação, filtros VPP/VEBox, AV1, perfis/profundidades não exercitados, MediaCodec Android e ativação automática em cada navegador não foram validados. O driver permanece experimental e vinculado ao kernel/hardware exatos.

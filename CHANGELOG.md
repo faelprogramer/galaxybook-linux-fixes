@@ -15,3 +15,11 @@
 - Added Intel CcP / `hci_uart` DKMS fix.
 - Added Intel `ibt-20-1-3.sfi/.ddc` initramfs workaround using dracut.
 - Added diagnostics and compatibility documentation.
+
+
+## 2026-10-19 — vídeo dedicado Lakefield V4
+
+- Habilitados os dois VDBOX mantendo a apresentação pelo firmware e as proteções do driver experimental.
+- Adicionado media-driver26.1.5 com descritor Lakefield e heap de36bits, GMM22.9.0 e pacote ABI comum para Linux, Flatpak e Snap; ambiente para todas as contas locais normais.
+- Decodificação real H.264/HEVC Main8bits/VP9Profile0 com quadros idênticos à CPU e trabalho dedicado observado após reboot. Desktop permanece acelerado e imagem normal confirmada.
+- Instalação, compilação, consulta e limites documentados. Codificação/VPP e Android MediaCodec não são alegados.

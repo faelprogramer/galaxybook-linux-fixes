@@ -42,6 +42,7 @@ case "$action" in
     integrate ;;
   4|--build)
     /usr/bin/bash "$root/build.sh"
+    /usr/bin/bash "$root/media/build.sh"
     /usr/bin/bash "$root/flatpak/build.sh"
     if [[ -n ${ANDROID_NDK_HOME:-} ]]; then /usr/bin/bash "$root/waydroid/build.sh"; else echo 'Android: defina ANDROID_NDK_HOME (NDK r30) e execute --build-waydroid.'; fi ;;
   --build-flatpak) /usr/bin/bash "$root/flatpak/build.sh" ;;

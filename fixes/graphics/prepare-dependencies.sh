@@ -5,7 +5,7 @@ set -euo pipefail
 [[ $(cat /sys/class/dmi/id/product_name) == 767XCL ]] || exit 1
 apt-get -o DPkg::Lock::Timeout=180 install -y --no-install-recommends \
   linux-source-7.0.0=7.0.0-38.38 linux-headers-7.0.0-38-generic \
-  acl build-essential meson ninja-build pkg-config curl patch python3-mako python3-ply \
+  git cmake patchelf libva-dev vainfo ffmpeg libigdgmm-dev libpciaccess-dev acl build-essential meson ninja-build pkg-config curl patch python3-mako python3-ply \
   bison flex libdrm-dev libexpat1-dev zlib1g-dev libzstd-dev libudev-dev \
   llvm-21-dev libclang-21-dev libclang-cpp21-dev libclc-21-dev libclc-21 \
   libllvmspirvlib-21-dev spirv-tools spirv-tools-dev glslang-tools \

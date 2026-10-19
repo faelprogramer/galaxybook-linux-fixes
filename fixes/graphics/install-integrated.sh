@@ -24,6 +24,9 @@ from pathlib import Path
 import hashlib,sys
 b=Path(sys.argv[1]);p=b/'SHA256SUMS';files=['user-environment.sh','start-graphics.sh','access-user.py','user-access.conf','uninstall.sh'];lines=[x for x in p.read_text().splitlines() if not any(x.endswith('  ./'+f) for f in files)];lines.extend(hashlib.sha256((b/f).read_bytes()).hexdigest()+'  ./'+f for f in files);p.write_text('\n'.join(lines)+'\n')
 MANIFEST
+if [[ -f $root/package/media/manifest.json ]]; then
+ python3 "$root/media/install.py" --payload "$root/package/media"
+fi
 systemctl daemon-reload
 "$base/access-user.py" --all
 if command -v flatpak >/dev/null && [[ -f $root/package/flatpak-host/manifest.json ]]; then

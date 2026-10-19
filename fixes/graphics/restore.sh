@@ -9,7 +9,7 @@ pci=/sys/bus/pci/devices/0000:00:02.0
    $(cat "$pci/vendor") == 0x8086 && $(cat "$pci/device") == 0x9840 &&
    $(cat "$pci/subsystem_vendor") == 0x144d && $(cat "$pci/subsystem_device") == 0xc18b ]]
 (cd "$base" && sha256sum -c SHA256SUMS)
-[[ $(modinfo -F lkf_experiment "$base/i915.ko") == render-only-preserve-bootfb-9840-samsung-c18b-v2 ]]
+[[ $(modinfo -F lkf_experiment "$base/i915.ko") == render-media-preserve-bootfb-9840-samsung-c18b-v4 ]]
 uid=$(cat "$base/target-uid")
 [[ ${PKEXEC_UID:-$uid} =~ ^[0-9]+$ ]]
 if systemctl is-active --quiet galaxybook-lakefield-graphics.service; then

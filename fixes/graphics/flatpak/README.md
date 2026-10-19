@@ -16,3 +16,6 @@ Não garante aplicativos sem permissão de GPU, outras arquiteturas, outros ramo
 ## Todas as contas locais
 
 A extensão fica em `/var/lib/flatpak/extension/org.freedesktop.Platform.GL.host/x86_64`, no mecanismo de extensões locais de sistema do Flatpak. Contas existentes e futuras usam o mesmo pacote; jogos, contas e configurações pessoais continuam separados. O instalador remove somente antigas extensões pessoais marcadas como gerenciadas por esta solução, após concluir a cópia de sistema.
+
+
+VA-API: o pacote comum também inclui iHD/GMM privados. O ambiente global contém caminhos de Linux nativo, Snap e GL.host; cada confinamento usa o caminho visível nele. Foi validada a criação de configuração H.264 High e superfície GPU1920×1080. A decodificação real com comparação integral de quadros foi validada no host, não em todos os aplicativos. Requer novo login para processos do menu receberem o ambiente. Consulte [validação](../VALIDATION.md).

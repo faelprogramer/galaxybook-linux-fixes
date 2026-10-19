@@ -1,0 +1,245 @@
+diff --git a/media_driver/agnostic/common/vp/hal/vphal_render_sfc_base.h b/media_driver/agnostic/common/vp/hal/vphal_render_sfc_base.h
+index 943c1c5..7ffcc67 100644
+--- a/media_driver/agnostic/common/vp/hal/vphal_render_sfc_base.h
++++ b/media_driver/agnostic/common/vp/hal/vphal_render_sfc_base.h
+@@ -619,6 +619,10 @@ protected:
+ class VphalSfcState
+ {
+ public:
++    // Disabled SFC stub: keep two-pass state absent from hardware execution.
++    bool m_bSFC2Pass = false;
++    bool m_bSFC2PassPerfMode = false;
++
+     VphalSfcState(
+         PMOS_INTERFACE       osInterface,
+         PRENDERHAL_INTERFACE renderHal,
+diff --git a/media_driver/linux/common/codec/ddi/media_libva_encoder.cpp b/media_driver/linux/common/codec/ddi/media_libva_encoder.cpp
+index 0a32f1e..c146b12 100644
+--- a/media_driver/linux/common/codec/ddi/media_libva_encoder.cpp
++++ b/media_driver/linux/common/codec/ddi/media_libva_encoder.cpp
+@@ -663,7 +663,11 @@ VAStatus DdiEncode_MfeSubmit(
+     {
+         encodeContext                 = DdiEncode_GetEncContextFromContextID(ctx, contexts[i]);
+         DDI_CHK_NULL(encodeContext, "nullptr encodeContext", VA_STATUS_ERROR_INVALID_CONTEXT);
++#ifdef _COMMON_ENCODE_SUPPORTED
+         CodechalEncoderState *encoder = dynamic_cast<CodechalEncoderState *>(encodeContext->pCodecHal);
++#else
++        CodechalEncoderState *encoder = nullptr;
++#endif
+         DDI_CHK_NULL(encoder, "nullptr codechal encoder", VA_STATUS_ERROR_INVALID_CONTEXT);
+ 
+         if (!encoder->m_mfeEnabled ||
+@@ -719,7 +723,11 @@ VAStatus DdiEncode_MfeSubmit(
+             encodeContext->EncodeParams.ExecCodecFunction = CODECHAL_FUNCTION_FEI_ENC;
+         }
+ 
++#ifdef _COMMON_ENCODE_SUPPORTED
+         CodechalEncoderState *encoder = dynamic_cast<CodechalEncoderState *>(encodeContext->pCodecHal);
++#else
++        CodechalEncoderState *encoder = nullptr;
++#endif
+         DDI_CHK_NULL(encoder, "nullptr encoder", VA_STATUS_ERROR_INVALID_CONTEXT);
+ 
+         encodeMfeContext->mfeEncodeSharedState->encoders.push_back(encoder);
+@@ -745,7 +753,11 @@ VAStatus DdiEncode_MfeSubmit(
+             encodeContext->EncodeParams.ExecCodecFunction = CODECHAL_FUNCTION_FEI_PAK;
+         }
+ 
++#ifdef _COMMON_ENCODE_SUPPORTED
+         CodechalEncoderState *encoder = dynamic_cast<CodechalEncoderState *>(encodeContext->pCodecHal);
++#else
++        CodechalEncoderState *encoder = nullptr;
++#endif
+         DDI_CHK_NULL(encoder, "nullptr encoder", VA_STATUS_ERROR_INVALID_CONTEXT);
+ 
+         status = encoder->Execute(&encodeContext->EncodeParams);
+@@ -775,7 +787,11 @@ VAStatus DdiEncode_SetGpuPriority(
+         osInterface->pfnSetGpuPriority(osInterface, priority);
+ 
+         //Get the CMRT osInterface of encode
++#ifdef _COMMON_ENCODE_SUPPORTED
+         CodechalEncoderState *encoder = dynamic_cast<CodechalEncoderState *>(encCtx->pCodecHal);
++#else
++        CodechalEncoderState *encoder = nullptr;
++#endif
+         DDI_CHK_NULL(encoder, "nullptr encoder", VA_STATUS_ERROR_INVALID_CONTEXT);
+ 
+         if(encoder->m_cmDev != nullptr)
+diff --git a/media_driver/linux/common/ddi/media_libva.cpp b/media_driver/linux/common/ddi/media_libva.cpp
+index 9917cdd..6999421 100755
+--- a/media_driver/linux/common/ddi/media_libva.cpp
++++ b/media_driver/linux/common/ddi/media_libva.cpp
+@@ -3043,7 +3043,11 @@ VAStatus DdiMedia_AddContextInternal(
+     PDDI_ENCODE_CONTEXT     encodeContext    = DdiEncode_GetEncContextFromContextID(ctx, context);
+     DDI_CHK_NULL(encodeContext, "nullptr encodeContext", VA_STATUS_ERROR_INVALID_CONTEXT);
+ 
++#ifdef _COMMON_ENCODE_SUPPORTED
+     CodechalEncoderState    *encoder         = dynamic_cast<CodechalEncoderState *>(encodeContext->pCodecHal);
++#else
++    CodechalEncoderState *encoder = nullptr;
++#endif
+     DDI_CHK_NULL(encoder, "nullptr codechal encoder", VA_STATUS_ERROR_INVALID_CONTEXT);
+ 
+     if (!mediaCtx->m_caps->IsMfeSupportedEntrypoint(encodeContext->vaEntrypoint))
+diff --git a/media_driver/linux/gen11/ddi/media_libva_caps_g11.cpp b/media_driver/linux/gen11/ddi/media_libva_caps_g11.cpp
+index a04a73a..997d9cf 100755
+--- a/media_driver/linux/gen11/ddi/media_libva_caps_g11.cpp
++++ b/media_driver/linux/gen11/ddi/media_libva_caps_g11.cpp
+@@ -1499,3 +1499,5 @@ static bool icllpRegistered = MediaLibvaCapsFactory<MediaLibvaCaps, DDI_MEDIA_CO
+     RegisterCaps<MediaLibvaCapsG11>((uint32_t)IGFX_ICELAKE_LP);
+ static bool ehlRegistered = MediaLibvaCapsFactory<MediaLibvaCaps, DDI_MEDIA_CONTEXT>::
+     RegisterCaps<MediaLibvaCapsG11>((uint32_t)IGFX_ELKHARTLAKE);
++
++static bool lkfExperimentalCapsRegistered = MediaLibvaCapsFactory<MediaLibvaCaps, DDI_MEDIA_CONTEXT>::RegisterCaps<MediaLibvaCapsG11>((uint32_t)IGFX_LAKEFIELD);
+diff --git a/media_driver/linux/gen11/ddi/media_sku_wa_g11.cpp b/media_driver/linux/gen11/ddi/media_sku_wa_g11.cpp
+index c222191..689237b 100644
+--- a/media_driver/linux/gen11/ddi/media_sku_wa_g11.cpp
++++ b/media_driver/linux/gen11/ddi/media_sku_wa_g11.cpp
+@@ -439,3 +439,42 @@ static struct LinuxDeviceInit ehlDeviceInit =
+ 
+ static bool ehlDeviceRegister = DeviceInfoFactory<LinuxDeviceInit>::
+     RegisterDevice(IGFX_ELKHARTLAKE, &ehlDeviceInit);
++
++// Experimental Lakefield decode-only exposure; encoding/VPP remain disabled.
++static bool InitLkfMediaSku(struct GfxDeviceInfo *devInfo, MediaFeatureTable *skuTable,
++                           struct LinuxDriverInfo *drvInfo, MediaUserSettingSharedPtr userSettingPtr)
++{
++    if (!InitIclMediaSku(devInfo, skuTable, drvInfo, userSettingPtr)) return false;
++    MEDIA_WR_SKU(skuTable, FtrEnableMediaKernels, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeAVC, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeAVCVdenc, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeHEVC, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeHEVC10bit, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeHEVC10bit422, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeHEVCVdencMain, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeHEVCVdencMain10, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeHEVCVdencMain10bit422, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeHEVCVdencMain10bit444, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeHEVCVdencMain422, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeHEVCVdencMain444, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeJPEG, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeMPEG2, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeVP8, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeVP9Vdenc, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeVP9Vdenc10bit420, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeVP9Vdenc10bit444, 0);
++    MEDIA_WR_SKU(skuTable, FtrEncodeVP9Vdenc8bit444, 0);
++    MEDIA_WR_SKU(skuTable, FtrHDR, 0);
++    MEDIA_WR_SKU(skuTable, FtrMemoryCompression, 0);
++    MEDIA_WR_SKU(skuTable, FtrSFCPipe, 0);
++    MEDIA_WR_SKU(skuTable, FtrVERing, 0);
++    MEDIA_WR_SKU(skuTable, FtrVp10BitSupport, 0);
++    MEDIA_WR_SKU(skuTable, FtrVpP010Output, 0);
++    return true;
++}
++static struct LinuxDeviceInit lkfExperimentalDeviceInit = {
++    .productFamily = IGFX_LAKEFIELD,
++    .InitMediaFeature = InitLkfMediaSku,
++    .InitMediaWa = InitIclMediaWa,
++};
++static bool lkfExperimentalSkuRegister = DeviceInfoFactory<LinuxDeviceInit>::RegisterDevice(IGFX_LAKEFIELD, &lkfExperimentalDeviceInit);
+diff --git a/media_driver/linux/gen11/ddi/media_sysinfo_g11.cpp b/media_driver/linux/gen11/ddi/media_sysinfo_g11.cpp
+index 7001fcd..16b3531 100644
+--- a/media_driver/linux/gen11/ddi/media_sysinfo_g11.cpp
++++ b/media_driver/linux/gen11/ddi/media_sysinfo_g11.cpp
+@@ -326,6 +326,37 @@ static struct GfxDeviceInfo icllpGt2Info = {
+     .InitShadowSku    = InitIclShadowSku,
+     .InitShadowWa     = InitIclShadowWa,
+ };
++
++/* Experimental exact Lakefield 9840: Gen11 codec path, no VEBox processing. */
++static bool InitLkfMediaSysInfo(struct GfxDeviceInfo *devInfo, MEDIA_GT_SYSTEM_INFO *sysInfo)
++{
++    if (!InitIcllpMediaSysInfo(devInfo, sysInfo)) return false;
++    sysInfo->VDBoxInfo.Instances.Bits.VDBox1Enabled = 1;
++    sysInfo->VEBoxInfo.Instances.Bits.VEBox0Enabled = 0;
++    sysInfo->VEBoxInfo.NumberOfVEBoxEnabled = 0;
++    return true;
++}
++
++static struct GfxDeviceInfo lkfExperimentalInfo = {
++    .platformType  = PLATFORM_MOBILE,
++    .productFamily = IGFX_LAKEFIELD,
++    .displayFamily = IGFX_GEN11_CORE,
++    .renderFamily  = IGFX_GEN11_CORE,
++    .mediaFamily   = IGFX_UNKNOWN_CORE,
++    .eGTType       = GTTYPE_GT2,
++    .L3CacheSizeInKb = 2560,
++    .L3BankCount   = 8,
++    .EUCount       = 64,
++    .SliceCount    = 1,
++    .SubSliceCount = 8,
++    .MaxEuPerSubSlice = 8,
++    .isLCIA        = 0,
++    .hasLLC        = 0,
++    .hasERAM       = 0,
++    .InitMediaSysInfo = InitLkfMediaSysInfo,
++    .InitShadowSku    = InitIclShadowSku,
++    .InitShadowWa     = InitIclShadowWa,
++};
+ static struct GfxDeviceInfo ehlDevInfo = {
+     .platformType  = PLATFORM_MOBILE,
+     .productFamily = IGFX_ELKHARTLAKE,
+@@ -438,3 +469,5 @@ static bool ehlDevice4E55 = DeviceInfoFactory<GfxDeviceInfo>::
+ 
+ static bool ehlDevice4555 = DeviceInfoFactory<GfxDeviceInfo>::
+     RegisterDevice(0x4555, &ehlDevInfo16EU);
++
++static bool lkfExperimentalDeviceRegister = base_fact::RegisterDevice(0x9840, &lkfExperimentalInfo);
+diff --git a/media_driver/media_interface/media_interfaces_m11_icllp/media_interfaces_g11_icllp.cpp b/media_driver/media_interface/media_interfaces_m11_icllp/media_interfaces_g11_icllp.cpp
+index 7f7e279..0de2339 100644
+--- a/media_driver/media_interface/media_interfaces_m11_icllp/media_interfaces_g11_icllp.cpp
++++ b/media_driver/media_interface/media_interfaces_m11_icllp/media_interfaces_g11_icllp.cpp
+@@ -647,3 +647,31 @@ MOS_STATUS MediaInterfacesHwInfoDeviceG11Icllp::Initialize(PLATFORM platform)
+     return MOS_STATUS_SUCCESS;
+ }
+ 
++
++// Lakefield uses the Gen11 command interfaces with its own product descriptor.
++static bool lkfExperimental_icllpRegisteredVphal =
++MediaFactory<uint32_t, VphalDevice>::
++Register<VphalInterfacesG11Icllp>((uint32_t)IGFX_LAKEFIELD);
++static bool lkfExperimental_icllpRegisteredMhw =
++    MediaFactory<uint32_t, MhwInterfaces>::
++    Register<MhwInterfacesG11Icllp>((uint32_t)IGFX_LAKEFIELD);
++static bool lkfExperimental_icllpRegisteredMmd =
++    MediaFactory<uint32_t, MmdDevice>::
++    Register<MmdDeviceG11Icllp>((uint32_t)IGFX_LAKEFIELD);
++static bool lkfExperimental_icllpRegisteredNv12ToP010 =
++    MediaFactory<uint32_t, Nv12ToP010Device>::
++    Register<Nv12ToP010DeviceG11Icllp>((uint32_t)IGFX_LAKEFIELD);
++static bool lkfExperimental_icllpRegisteredCodecHal =
++    MediaFactory<uint32_t, CodechalDevice>::
++    Register<CodechalInterfacesG11Icllp>((uint32_t)IGFX_LAKEFIELD);
++static bool lkfExperimental_icllpRegisteredCMHal =
++    MediaFactory<uint32_t, CMHalDevice>::
++    Register<CMHalInterfacesG11Icllp>((uint32_t)IGFX_LAKEFIELD);
++static bool lkfExperimental_icllpRegisteredRenderHal =
++    MediaFactory<uint32_t, RenderHalDevice>::
++    Register<RenderHalInterfacesG11Icllp>((uint32_t)IGFX_LAKEFIELD);
++static bool lkfExperimental_icllpRegisteredDecodeHistogram =
++MediaFactory<uint32_t, DecodeHistogramDevice>::
++Register<DecodeHistogramDeviceG11Icllp>((uint32_t)IGFX_LAKEFIELD);
++static bool lkfExperimental_iclRegisteredHwInfo =
++    MediaFactory<uint32_t, MediaInterfacesHwInfoDevice>::Register<MediaInterfacesHwInfoDeviceG11Icllp>((uint32_t)IGFX_LAKEFIELD);
+diff --git a/media_softlet/linux/common/os/i915/mos_bufmgr.c b/media_softlet/linux/common/os/i915/mos_bufmgr.c
+index bca411b..22d0eb9 100644
+--- a/media_softlet/linux/common/os/i915/mos_bufmgr.c
++++ b/media_softlet/linux/common/os/i915/mos_bufmgr.c
+@@ -5499,7 +5499,15 @@ mos_bufmgr_gem_init_i915(int fd, int batch_size)
+     DRMLISTADD(&bufmgr_gem->managers, &bufmgr_list);
+ 
+     bufmgr_gem->use_softpin = false;
+-    mos_vma_heap_init(&bufmgr_gem->vma_heap[MEMZONE_SYS], MEMZONE_SYS_START, MEMZONE_SYS_SIZE);
++    {
++    /* Respect the KMD VM size. Lakefield exposes 36 bits, not the 40-bit
++     * system-zone default; the high-address allocator must stay inside it. */
++    uint64_t sys_vma_size = MEMZONE_SYS_SIZE;
++    if (ret == 0 && context_param.value > MEMZONE_SYS_START &&
++        context_param.value < MEMZONE_DEVICE_START)
++        sys_vma_size = context_param.value - MEMZONE_SYS_START;
++    mos_vma_heap_init(&bufmgr_gem->vma_heap[MEMZONE_SYS], MEMZONE_SYS_START, sys_vma_size);
++    }
+     mos_vma_heap_init(&bufmgr_gem->vma_heap[MEMZONE_DEVICE], MEMZONE_DEVICE_START, MEMZONE_DEVICE_SIZE);
+ 
+ exit:

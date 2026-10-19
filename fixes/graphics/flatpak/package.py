@@ -18,6 +18,11 @@ for p in list((staged/'lib').rglob('*')):
 icds=list((staged/'share/vulkan/icd.d').glob('intel_icd*.json'));assert len(icds)==1
 icd=json.loads(icds[0].read_text());icd['ICD']['library_path']='/usr/lib/x86_64-linux-gnu/GL/host/lib/libvulkan_intel.so'
 (staged/'vulkan/icd.d/00_galaxybook_lakefield.json').write_text(json.dumps(icd,indent=2)+'\n')
+media=Path(__file__).resolve().parent.parent/'package/media'
+if media.is_dir():
+ subprocess.run(['sha256sum','--status','-c','SHA256SUMS'],cwd=media,check=True)
+ shutil.copytree(media/'lib',staged/'lib',symlinks=True,dirs_exist_ok=True)
+ shutil.copytree(media/'licenses',staged/'licenses',dirs_exist_ok=True)
 versions=set();cxx=set()
 for p in (staged/'lib').rglob('*'):
  if not p.is_file() or p.is_symlink() or '.so' not in p.name:continue
@@ -27,6 +32,7 @@ def key(s):return tuple(map(int,s.split('.')))
 maximum=max(versions,key=key);assert key(maximum)<=(2,35),maximum
 if cxx:assert key(max(cxx,key=key))<=(3,4,30)
 manifest={'format':1,'hardware':'Samsung767XCL 8086:9840/144d:c18b','mesa':'26.0.8','sdk':'org.freedesktop.Sdk/x86_64/22.08','glibc_max':maximum,'glibcxx_max':max(cxx,key=key) if cxx else None,'drivers':['iris','softpipe','intel Vulkan'],'experimental':True,'cts_validated':False}
+if media.is_dir():manifest['media']=json.loads((media/'manifest.json').read_text())
 (staged/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 (staged/'SHA256SUMS').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  ./'+str(p.relative_to(staged))+'\n' for p in sorted(staged.rglob('*')) if p.is_file() and not p.is_symlink() and p.name!='SHA256SUMS'))
 if out.exists():

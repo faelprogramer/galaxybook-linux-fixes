@@ -8,12 +8,12 @@ Esta é uma implementação local experimental, não suporte oficial da Intel/Me
 
 O kernel original não reconhecia esta GPU como dispositivo i915 e a Mesa original não incluía seu identificador. O painel funcionava via simpledrm, mas o desktop usava llvmpipe, renderizando pela CPU.
 
-A solução combina dois patches publicados aqui:
+A solução combina os patches de kernel/Mesa e o módulo de vídeo descrito abaixo:
 
-- i915: habilita apenas renderização no dispositivo exato; preserva o framebuffer do firmware e reserva sua faixa no GGTT para evitar que alocações da GPU sobrescrevam a imagem. Desativa recursos não validados, incluindo gerenciamento de energia específico da GPU e OA/perf.
+- i915 V4: habilita renderização e os dois motores VDBOX de decodificação no dispositivo exato; preserva o framebuffer do firmware e reserva sua faixa no GGTT para evitar que alocações da GPU sobrescrevam a imagem. Desativa recursos não validados, incluindo gerenciamento de energia específico da GPU e OA/perf.
 - Mesa: identifica Lakefield, habilita Iris e ANV mediante opt-in e permite que Iris compartilhe buffers lineares com simpledrm. A GPU renderiza; o caminho de apresentação preserva o painel configurado pelo firmware. Há cópia pelo processador na apresentação final; isto não equivale a controle nativo completo do painel pelo i915.
 
-As bibliotecas ficam em `/opt/galaxybook-lakefield/mesa`; o módulo fica fora da árvore padrão do kernel. Não se substituem as bibliotecas da distribuição, o i915 original, initramfs ou GRUB. O serviço verifica modelo, IDs PCI, versão do kernel e um teste real de shader/compartilhamento de framebuffer antes de liberar as variáveis de ambiente para a conta selecionada. Os dispositivos i915 ficam fora do assento gráfico padrão; o simpledrm continua controlando o painel.
+As bibliotecas ficam em `/opt/galaxybook-lakefield/mesa`; o módulo fica fora da árvore padrão do kernel. Não se substituem as bibliotecas da distribuição, o i915 original, initramfs ou GRUB. O serviço verifica modelo, IDs PCI, versão do kernel e um teste real de shader/compartilhamento de framebuffer antes de liberar as variáveis de ambiente para as contas locais normais. Os dispositivos i915 ficam fora do assento gráfico padrão; o simpledrm continua controlando o painel.
 
 O serviço usa `systemd-run --no-block` para iniciar o monitor de confirmação: esperar um monitor de dez minutos dentro de um serviço de inicialização com prazo de 65 segundos causava timeout e foi corrigido antes da validação final.
 
@@ -23,7 +23,7 @@ O serviço usa `systemd-run --no-block` para iniciar o monitor de confirmação:
 bash fixes/graphics/graphics.sh --verify
 ```
 
-O script sem argumentos apresenta um menu. Verificar não altera configurações. `--install` restaura uma instalação local íntegra que tenha sido desativada; não recarrega o driver nem encerra a sessão atual. Se já estiver ativa, informa isso e não faz alterações.
+O script sem argumentos apresenta um menu. Verificar não altera configurações. `--install` restaura uma instalação local íntegra que tenha sido desativada; não recarrega o driver nem encerra a sessão atual. Se já estiver ativa, atualiza as integrações disponíveis para as novas sessões.
 
 O pacote deixado localmente na Área de Trabalho contém os binários compilados e verificados nesta máquina. **Os binários não estão no GitHub**: o repositório contém fontes, patches, instalação, verificação e reversão. Copie a pasta inteira do pacote local, não somente seu lançador.
 
@@ -58,7 +58,7 @@ Depois reinicie. O script desativa a inicialização, remove as regras e variáv
 ## Limites conhecidos
 
 - **Atualizações de kernel:** o módulo só foi compilado e validado para `7.0.0-38-generic`. Outro kernel volta aos gráficos originais por software. Não há DKMS e o script não bloqueia atualizações.
-- Não foram validados suspensão/retomada, monitor externo, brilho, autonomia, estabilidade prolongada, vídeo acelerado ou toda a suíte de conformidade gráfica. O driver Vulkan anuncia conformidade `0.0.0.0`, pois não passou CTS; abrir uma API 1.4 não constitui certificação.
+- Não foram validados suspensão/retomada, monitor externo, brilho, autonomia, estabilidade prolongada ou toda a suíte de conformidade gráfica. O driver Vulkan anuncia conformidade `0.0.0.0`, pois não passou CTS; abrir uma API 1.4 não constitui certificação.
 - O aviso `Forcing probe of unsupported ... Lakefield experimental` é esperado e preservado para identificar esta ativação experimental. `glxgears` e FPS isoladamente não comprovam o uso da GPU; `--verify` verifica o renderizador e o trabalho do compositor.
 - **Sober/Flatpak:** o sandbox usa sua própria Mesa; a integração adicional em [fixes/sober](../sober/README.md) habilitou o driver Vulkan corrigido no aplicativo. O Sober abriu normalmente e o usuário relatou que conseguiu jogar. A correção do desktop continua independente dessa integração; estabilidade prolongada e todas as experiências não foram validadas.
 
@@ -84,6 +84,10 @@ Na mudança de configuração, saia completamente e entre novamente na conta par
 
 A instalação atual do Waydroid acompanha uma sessão Android por vez. Antes de alternar usuários, escolha “Parar Waydroid” no menu do aplicativo ou saia completamente da conta. O lançador global informa quando outra conta ainda está usando o Android; não encerra a sessão alheia nem copia seus dados.
 
-### Limite de VA-API
+### Vídeo por VA-API (19/10/2026)
 
-`vainfo` testa decodificação/codificação de vídeo, separadamente de OpenGL/Vulkan. Nesta instalação, iHD_drv_video.so e i965_drv_video.so estão ausentes; além disso, o módulo experimental habilita somente RCS0 e BCS0, sem os motores VCS/VECS de vídeo. A solução não oferece VA-API de vídeo, e instalar somente vainfo não adiciona esse suporte.
+A falha de `vainfo` era separada da renderização: faltavam o plugin de vídeo e os motores dedicados no descritor experimental do kernel. A variante V4 mantém o painel do firmware e adiciona VCS0/VCS2 (nomes lógicos vcs0/vcs1). O [módulo de vídeo](media/README.md) registra Lakefield no Intel media-driver 26.1.5 e limita alocações ao espaço de endereçamento real de 36 bits; usa GMM 22.9.0, que já reconhece Lakefield.
+
+Após reinício, H.264 Baseline Full HD, H.264 High, HEVC Main 8 bits e VP9 Profile0 foram decodificados com atividade dos motores dedicados e todos os quadros idênticos à referência por software. OpenGL e o desktop continuaram acelerados; o usuário confirmou imagem aparentemente normal.
+
+O instalador distribui o plugin privado para Linux nativo, GL.host de sistema e pastas de driver do Snap. O ambiente vale para todas as contas locais normais, após sair completamente e entrar novamente. Não há promessa de que todo aplicativo habilite VA-API automaticamente: ele precisa ter acesso à GPU e suporte de vídeo em sua própria compilação/configuração. Codificação, VPP/VEBox e Android MediaCodec não integram esta validação.

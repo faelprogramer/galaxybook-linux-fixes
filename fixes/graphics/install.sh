@@ -22,7 +22,7 @@ pci=/sys/bus/pci/devices/0000:00:02.0
   echo 'Installation path/configuration already exists; refusing to overwrite.' >&2; exit 1;
 }
 (cd "$source_dir/payload" && sha256sum -c SHA256SUMS)
-[[ $(modinfo -F lkf_experiment "$source_dir/payload/i915.ko") == render-only-preserve-bootfb-9840-samsung-c18b-v2 ]] || exit 1
+[[ $(modinfo -F lkf_experiment "$source_dir/payload/i915.ko") == render-media-preserve-bootfb-9840-samsung-c18b-v4 ]] || exit 1
 # If a validated temporary render driver is already active, check the exact
 # staged GLVND/GBM payload before making any persistent filesystem changes.
 render_nodes=("$pci"/drm/renderD*)

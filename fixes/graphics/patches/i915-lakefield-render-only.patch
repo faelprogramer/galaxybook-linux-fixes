@@ -1,5 +1,5 @@
 SPDX-License-Identifier: GPL-2.0-only
-Lakefield render-only changes for Ubuntu Linux 7.0.0-38.38.
+Lakefield render/media changes for Ubuntu Linux 7.0.0-38.38.
 
 --- a/intel_device_info.h
 +++ b/intel_device_info.h
@@ -28,7 +28,7 @@ Lakefield render-only changes for Ubuntu Linux 7.0.0-38.38.
  };
  
 +/*
-+ * Experimental Lakefield render-only bring-up, not a production driver.
++ * Experimental Lakefield render/media bring-up, not a production driver.
 + * Intel LKF PRM Vol 4 (May 2021), pp. 3 and 7:
 + *   device 9840, Gen11 1x8x8, 36-bit virtual / 39-bit physical addresses.
 + * Intentionally leave the display PCI table unchanged. Do not claim KMS.
@@ -40,7 +40,7 @@ Lakefield render-only changes for Ubuntu Linux 7.0.0-38.38.
 +	PLATFORM(INTEL_LAKEFIELD),
 +	.gt = 2,
 +	.require_force_probe = 1,
-+	.platform_engine_mask = BIT(RCS0) | BIT(BCS0),
++	.platform_engine_mask = BIT(RCS0) | BIT(BCS0) | BIT(VCS0) | BIT(VCS2),
 +	.__runtime.ppgtt_size = 36,
 +	.dma_mask_size = 39,
 +	.memory_regions = BIT(INTEL_REGION_SMEM), /* Preserve BIOS stolen memory. */
@@ -88,7 +88,7 @@ Lakefield render-only changes for Ubuntu Linux 7.0.0-38.38.
  MODULE_LICENSE("GPL and additional rights");
 +
 +/* Identifies the uninstalled local bring-up artifact. */
-+MODULE_INFO(lkf_experiment, "render-only-preserve-bootfb-9840-samsung-c18b-v2");
++MODULE_INFO(lkf_experiment, "render-media-preserve-bootfb-9840-samsung-c18b-v4");
 --- a/i915_driver.c
 +++ b/i915_driver.c
 @@ -504,9 +504,16 @@

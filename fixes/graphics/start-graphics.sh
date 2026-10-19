@@ -22,7 +22,7 @@ fi
 }
 [[ $(cat /sys/class/graphics/fb0/name) == simpledrmdrmfb &&
    -d $pci/simple-framebuffer.0 ]] || exit 1
-[[ $(modinfo -F lkf_experiment "$base/i915.ko") == render-only-preserve-bootfb-9840-samsung-c18b-v2 ]] || exit 1
+[[ $(modinfo -F lkf_experiment "$base/i915.ko") == render-media-preserve-bootfb-9840-samsung-c18b-v4 ]] || exit 1
 [[ $(modinfo -F vermagic "$base/i915.ko") == "$expected_kernel "* ]] || exit 1
 loaded=0
 failure() {
