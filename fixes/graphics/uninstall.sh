@@ -9,6 +9,7 @@ rm -f -- /etc/udev/rules.d/99-galaxybook-lakefield-render.rules
 rm -f -- /etc/systemd/system/galaxybook-lakefield-graphics.service
 rm -f -- /run/galaxybook-lakefield/render-node
 rm -f -- /var/lib/galaxybook-lakefield/pending-first-boot
+rm -f -- /etc/systemd/system/user@.service.d/50-galaxybook-lakefield.conf
 systemctl daemon-reload
 udevadm control --reload-rules
 printf '%s\n' 'Disabled. Reboot to return to stock graphics. Private files retained for rollback/history.'

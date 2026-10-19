@@ -74,3 +74,16 @@ Depois reinicie. O script desativa a inicialização, remove as regras e variáv
 O pacote local do Desktop inclui os módulos Flatpak, Snap e Android. `graphics.sh --install` atualiza os módulos disponíveis com uma autenticação administrativa. Sair e entrar novamente é necessário para novos Snaps abertos pelo menu herdarem as opções atualizadas. Consulte [Flatpak](flatpak/README.md), [Snap](snap/README.md) e [Waydroid](waydroid/README.md) para validação, limites e reversão.
 
 O código no GitHub não inclui binários. A cópia do Desktop contém os pacotes compilados para este notebook e este kernel. Não instale em outro modelo/kernel; os instaladores conferem os identificadores.
+
+
+## Contas locais existentes e futuras
+
+`graphics.sh --install` agora instala a extensão GL.host em nível de sistema. O ambiente gráfico privado atende contas locais com UID1000–65533. O serviço gráfico concede ACLs somente no nó de renderização validado; um passo anterior ao gerenciador de cada usuário concede a ACL também para contas criadas depois do boot. O greeter, root e contas de serviço não recebem as variáveis privadas. Não se disponibiliza o nó DRM de controle nem se torna o render node gravável por todos.
+
+Na mudança de configuração, saia completamente e entre novamente na conta para carregar o novo ambiente. Foram testados shader GLES3 no host e dentro do sandbox do Sober, e envio/comprovação de resultado Vulkan, executando com UID de uma segunda conta. Isso não substitui a confirmação visual na sessão dela.
+
+A instalação atual do Waydroid acompanha uma sessão Android por vez. Antes de alternar usuários, escolha “Parar Waydroid” no menu do aplicativo ou saia completamente da conta. O lançador global informa quando outra conta ainda está usando o Android; não encerra a sessão alheia nem copia seus dados.
+
+### Limite de VA-API
+
+`vainfo` testa decodificação/codificação de vídeo, separadamente de OpenGL/Vulkan. Nesta instalação, iHD_drv_video.so e i965_drv_video.so estão ausentes; além disso, o módulo experimental habilita somente RCS0 e BCS0, sem os motores VCS/VECS de vídeo. A solução não oferece VA-API de vídeo, e instalar somente vainfo não adiciona esse suporte.

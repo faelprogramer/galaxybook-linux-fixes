@@ -4,7 +4,7 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 integrate() {
   pkexec /usr/bin/bash "$root/install-integrated.sh" "$(id -un)"
-  if systemctl is-active --quiet galaxybook-lakefield-graphics.service && [[ -f $root/package/flatpak-host/manifest.json ]]; then
+  if [[ -f $HOME/.local/share/applications/org.vinegarhq.Sober.desktop ]] && grep -q X-GalaxyBook-Lakefield=true "$HOME/.local/share/applications/org.vinegarhq.Sober.desktop" && systemctl is-active --quiet galaxybook-lakefield-graphics.service && [[ -f $root/package/flatpak-host/manifest.json ]]; then
     python3 "$root/flatpak/install.py" install --payload "$root/package/flatpak-host"
   fi
 }

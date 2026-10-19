@@ -11,7 +11,7 @@ pci=/sys/bus/pci/devices/0000:00:02.0
 (cd "$base" && sha256sum -c SHA256SUMS)
 [[ $(modinfo -F lkf_experiment "$base/i915.ko") == render-only-preserve-bootfb-9840-samsung-c18b-v2 ]]
 uid=$(cat "$base/target-uid")
-[[ ${PKEXEC_UID:-$uid} == "$uid" ]]
+[[ ${PKEXEC_UID:-$uid} =~ ^[0-9]+$ ]]
 if systemctl is-active --quiet galaxybook-lakefield-graphics.service; then
   echo 'A correção já está ativa. Use --verify.'; exit 0
 fi
@@ -24,6 +24,9 @@ SUBSYSTEM=="drm", ENV{DEVPATH}=="/devices/pci0000:00/0000:00:02.0/drm/renderD[0-
 RULE
 printf '%s\n' "$(cat /proc/sys/kernel/random/boot_id)" > /var/lib/galaxybook-lakefield/pending-first-boot
 udevadm control --reload-rules
+install -d -m755 /etc/systemd/system/user@.service.d
+install -m644 "$base/user-access.conf" /etc/systemd/system/user@.service.d/50-galaxybook-lakefield.conf
+chmod 755 "$base/access-user.py"
 systemctl daemon-reload
 systemctl enable galaxybook-lakefield-graphics.service
 echo 'Restaurada para o próximo reinício. Confirme a tela com --confirm em até 10 minutos após iniciar.'

@@ -13,3 +13,8 @@ Avatar World 1.226 inclui x86_64, sem necessidade de tradução ARM. O processo 
 Reversão específica: `pkexec python3 waydroid/install.py disable`. Remove somente a sobreposição gerenciada e restaura as propriedades anteriores, preservando os dados do Android.
 
 Diagnóstico adicional do Avatar World: falhas repetidas SIGSEGV em libc strlen, chamada por libpairipcore.so do aplicativo, com aproximadamente um segundo de vida do processo. A pilha registrada não contém Iris/ANV/EGL; a causa interna da biblioteca do jogo não foi determinada. O jogo foi encerrado para interromper o ciclo; instalação e dados preservados. Usuário confirmou que o Waydroid em si ficou mais rápido. A aceleração da interface foi validada, a execução desse jogo não.
+
+
+## Troca de usuário do Linux
+
+O serviço atual acompanha uma sessão Android por vez. Uma sessão congelada da outra conta também ocupa o contêiner. Pare o Waydroid antes de trocar de conta, ou saia completamente dela. O lançador de sistema mostra uma mensagem com esse motivo, sem roubar a sessão ou copiar dados de outro usuário. A extensão gráfica compartilhada não compartilha contas Google nem os dados pessoais Android. Ajustes específicos de jogos ficam fora do escopo deste instalador gráfico.

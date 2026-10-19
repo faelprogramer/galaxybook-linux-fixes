@@ -60,6 +60,9 @@ install -d -m700 -o "$uid" -g "$(id -g "$target_user")" \
 printf '%s\n' "$(cat /proc/sys/kernel/random/boot_id)" > \
   /var/lib/galaxybook-lakefield/pending-first-boot
 udevadm control --reload-rules
+install -d -m755 /etc/systemd/system/user@.service.d
+install -m644 "$base/user-access.conf" /etc/systemd/system/user@.service.d/50-galaxybook-lakefield.conf
+chmod 755 "$base/access-user.py"
 systemctl daemon-reload
 systemd-analyze verify /etc/systemd/system/galaxybook-lakefield-graphics.service
 systemctl enable galaxybook-lakefield-graphics.service

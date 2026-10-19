@@ -11,20 +11,24 @@ if [[ ! -d $base ]]; then
 else
  /usr/bin/bash "$root/restore.sh"
 fi
-# The source installation entry point must match the selected local account.
-[[ $(cat "$base/target-uid") == $(id -u "$user") ]]
 (cd "$base" && sha256sum --status -c SHA256SUMS)
-install -m755 "$root/user-environment.sh" "$base/user-environment.sh"
-install -d -m755 /etc/systemd/user-environment-generators
+for file in user-environment.sh start-graphics.sh access-user.py user-access.conf uninstall.sh; do
+ install -m644 "$root/$file" "$base/$file"
+done
+chmod 755 "$base/"*.sh "$base/access-user.py"
+install -d -m755 /etc/systemd/user-environment-generators /etc/systemd/system/user@.service.d
 install -m755 "$base/user-environment.sh" /etc/systemd/user-environment-generators/50-galaxybook-lakefield
-# Update only this changed core script in the payload's own integrity manifest.
-python3 - "$base" <<'PY'
+install -m644 "$base/user-access.conf" /etc/systemd/system/user@.service.d/50-galaxybook-lakefield.conf
+python3 - "$base" <<'MANIFEST'
 from pathlib import Path
 import hashlib,sys
-base=Path(sys.argv[1]);p=base/'SHA256SUMS';lines=p.read_text().splitlines()
-assert sum(s.endswith('  ./user-environment.sh') for s in lines)==1
-p.write_text('\n'.join(hashlib.sha256((base/'user-environment.sh').read_bytes()).hexdigest()+'  ./user-environment.sh' if s.endswith('  ./user-environment.sh') else s for s in lines)+'\n')
-PY
+b=Path(sys.argv[1]);p=b/'SHA256SUMS';files=['user-environment.sh','start-graphics.sh','access-user.py','user-access.conf','uninstall.sh'];lines=[x for x in p.read_text().splitlines() if not any(x.endswith('  ./'+f) for f in files)];lines.extend(hashlib.sha256((b/f).read_bytes()).hexdigest()+'  ./'+f for f in files);p.write_text('\n'.join(lines)+'\n')
+MANIFEST
+systemctl daemon-reload
+"$base/access-user.py" --all
+if command -v flatpak >/dev/null && [[ -f $root/package/flatpak-host/manifest.json ]]; then
+ python3 "$root/flatpak/install-system.py" install --payload "$root/package/flatpak-host"
+fi
 if ! systemctl is-active --quiet galaxybook-lakefield-graphics.service; then
  echo 'Driver preparado para o próximo reinício. Depois confirme a imagem para concluir as integrações.'
  exit 0
@@ -35,3 +39,5 @@ fi
 if command -v waydroid >/dev/null && [[ -f $root/package/waydroid/manifest.json ]]; then
  python3 "$root/waydroid/install.py" install --payload "$root/package/waydroid"
 fi
+
+if command -v waydroid >/dev/null; then python3 "$root/waydroid/install-launcher.py" install; fi

@@ -41,3 +41,12 @@ Não se afirma suporte upstream, certificação de toda a API, estabilidade prol
 Não houve certificação CTS, teste de todas as aplicações Snap nem validação de versões futuras.
 
 Diagnóstico adicional do Avatar World: falhas repetidas SIGSEGV em libc strlen, chamada por libpairipcore.so do aplicativo, com aproximadamente um segundo de vida do processo. A pilha registrada não contém Iris/ANV/EGL; a causa interna da biblioteca do jogo não foi determinada. O jogo foi encerrado para interromper o ciclo; instalação e dados preservados. Usuário confirmou que o Waydroid em si ficou mais rápido. A aceleração da interface foi validada, a execução desse jogo não.
+
+
+## Contas múltiplas e VA-API, 19/10/2026
+
+- Extensão GL.host global instalada; ambiente e permissão de renderização estendidos às contas locais normais, com concessão no boot e no início dos novos gerenciadores de usuário.
+- Segunda conta local: teste nativo GLES3 com1024 pixels corretos e teste do mesmo shader dentro do sandbox Sober; Vulkan Intel executou comando e conferiu memória0x4c4b4632. Teste sem sessão gráfica produziu aviso do portal de documentos/FUSE, mas os testes gráficos passaram; abertura real da interface deve ser confirmada após novo login.
+- Configuração efetiva de user@.service passou systemd-analyze verify. A lógica de contas futuras foi instalada; não se criou conta fictícia nem se alegou teste visual em todas as contas.
+- Waydroid de outra conta ainda ativo foi identificado; a sessão antiga foi encerrada sem apagar seus dados. Lançador informa a limitação de uma sessão Android ativa.
+- VA-API: reprodução de falha também diretamente no render node, além de Wayland. Ausência dos plugins Intel confirmada; máscara do módulo limita motores a RCS0/BCS0. Não há alegação de vídeo acelerado.

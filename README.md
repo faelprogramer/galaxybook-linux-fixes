@@ -119,3 +119,6 @@ Este projeto não é oficial da Samsung nem do Ubuntu. Faça backup e leia o scr
 
 
 A correção gráfica também possui integração padrão [Flatpak](fixes/graphics/flatpak/README.md), [Snap](fixes/graphics/snap/README.md) e [Waydroid](fixes/graphics/waydroid/README.md), com bibliotecas próprias para Linux e Android. Veja os testes e limites em [VALIDATION](fixes/graphics/VALIDATION.md). A interface Android usa a GPU Intel; Avatar World1.226 permanece incompatível nesta instalação, com falha registrada na biblioteca libpairipcore.so do aplicativo.
+
+
+A instalação gráfica padrão agora atende todas as contas locais normais, inclusive contas criadas depois, com extensão Flatpak de sistema e concessão do nó de renderização a cada novo login. Consulte [contas múltiplas e limite de VA-API](fixes/graphics/README.md#contas-locais-existentes-e-futuras). O Waydroid continua limitado a uma sessão Android ativa por vez.

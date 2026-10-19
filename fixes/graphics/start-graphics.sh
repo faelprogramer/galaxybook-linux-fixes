@@ -71,6 +71,7 @@ env -u LIBGL_ALWAYS_SOFTWARE -u GALLIUM_DRIVER -u MESA_GL_VERSION_OVERRIDE \
 printf '%s\n' "$node" > "$state/render-node.tmp"
 chmod 644 "$state/render-node.tmp"
 mv -f -- "$state/render-node.tmp" "$state/render-node"
+"$base/access-user.py" --all
 log "Validated rendering and firmware framebuffer sharing on $node; user graphics environment enabled."
 
 if [[ -f /var/lib/galaxybook-lakefield/pending-first-boot ]]; then

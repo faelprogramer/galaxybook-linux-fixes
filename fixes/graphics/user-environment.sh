@@ -3,7 +3,10 @@
 set -eu
 base=/opt/galaxybook-lakefield
 [[ -r $base/target-uid && -r /run/galaxybook-lakefield/render-node ]] || exit 0
-[[ $(id -u) == $(cat "$base/target-uid") ]] || exit 0
+# Normal local accounts only; root, greeter and service accounts keep stock paths.
+current_uid=$(id -u)
+[[ $current_uid -ge 1000 && $current_uid -lt 65534 ]] || exit 0
+awk -F: -v uid="$current_uid" '$3 == uid { found=1 } END { exit !found }' /etc/passwd || exit 0
 [[ $(uname -r) == $(cat "$base/kernel-release") ]] || exit 0
 IFS= read -r node < /run/galaxybook-lakefield/render-node
 [[ $node == /dev/dri/renderD[0-9]* && -r $node && -w $node ]] || exit 0
