@@ -61,7 +61,7 @@ sudo ./fixes/bluetooth/install.sh --remover
 
 ## Experimental graphics acceleration
 
-See [graphics installation, verification and rollback](fixes/graphics/README.md). Exact-machine i915 + Mesa patches enable GPU rendering while preserving firmware display. Validated after reboot; pinned kernel; Sober remains unvalidated.
+See [graphics installation, verification and rollback](fixes/graphics/README.md). Exact-machine i915 + Mesa patches enable GPU rendering while preserving firmware display. Validated after reboot; pinned kernel; Sober Vulkan integration and user-reported gameplay: [instructions](fixes/sober/README.md).
 
 ## Project principles
 
@@ -115,4 +115,4 @@ Este projeto não é oficial da Samsung nem do Ubuntu. Faça backup e leia o scr
 
 ### Aceleração gráfica experimental
 
-[Instalação, verificação, limites e reversão dos gráficos](fixes/graphics/README.md). Patches i915 + Mesa para o modelo exato, com validação após reinício e kernel específico. Sober permanece sem validação de funcionamento.
+[Instalação, verificação, limites e reversão dos gráficos](fixes/graphics/README.md). Patches i915 + Mesa para o modelo exato, com validação após reinício e kernel específico. Integração Vulkan do Sober e relato do usuário de jogo funcional: [instruções](fixes/sober/README.md).

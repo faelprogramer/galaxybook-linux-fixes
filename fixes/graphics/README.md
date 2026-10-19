@@ -60,7 +60,7 @@ Depois reinicie. O script desativa a inicialização, remove as regras e variáv
 - **Atualizações de kernel:** o módulo só foi compilado e validado para `7.0.0-38-generic`. Outro kernel volta aos gráficos originais por software. Não há DKMS e o script não bloqueia atualizações.
 - Não foram validados suspensão/retomada, monitor externo, brilho, autonomia, estabilidade prolongada, vídeo acelerado ou toda a suíte de conformidade gráfica. O driver Vulkan anuncia conformidade `0.0.0.0`, pois não passou CTS; abrir uma API 1.4 não constitui certificação.
 - O aviso `Forcing probe of unsupported ... Lakefield experimental` é esperado e preservado para identificar esta ativação experimental. `glxgears` e FPS isoladamente não comprovam o uso da GPU; `--verify` verifica o renderizador e o trabalho do compositor.
-- **Sober/Flatpak:** funcionamento do Roblox não foi validado. O sandbox usa sua própria Mesa; corrigir a Mesa do host não garante suporte ao dispositivo dentro do Flatpak. O Flatpak testado removeu a variável privada `VK_DRIVER_FILES`, portanto o caminho `/opt` do host não foi imposto ao sandbox. A correção do desktop é independente do Sober.
+- **Sober/Flatpak:** o sandbox usa sua própria Mesa; a integração adicional em [fixes/sober](../sober/README.md) habilitou o driver Vulkan corrigido no aplicativo. O Sober abriu normalmente e o usuário relatou que conseguiu jogar. A correção do desktop continua independente dessa integração; estabilidade prolongada e todas as experiências não foram validadas.
 
 ## Fontes e licenças
 
