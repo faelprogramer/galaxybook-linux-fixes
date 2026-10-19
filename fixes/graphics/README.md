@@ -67,3 +67,10 @@ Depois reinicie. O script desativa a inicialização, remove as regras e variáv
 - Linux: pacote fonte Ubuntu `linux-source-7.0.0`, versão `7.0.0-38.38`, e cabeçalhos correspondentes. As modificações do i915 seguem a licença GPL-2.0 aplicável ao kernel; consulte os avisos dos arquivos originais.
 - Mesa: [arquivo oficial 26.0.8](https://archive.mesa3d.org/mesa-26.0.8.tar.xz), SHA-256 `caf1c0061a68e88dfa74967a7e780c0e85d65b6c4e334cd69095a5dc54ad78bc`. As alterações preservam as licenças dos arquivos originais Mesa, predominantemente MIT; consulte `docs/license.rst` do tarball.
 - Scripts e teste local: licença MIT deste repositório. O pacote compilado local contém componentes Linux/Mesa, sujeitos às respectivas licenças; os patches e a versão exata dos fontes estão documentados aqui. Nenhum dump de BIOS, credencial ou log de conta é distribuído.
+
+
+## Integração de aplicativos (19/10/2026)
+
+O pacote local do Desktop inclui os módulos Flatpak, Snap e Android. `graphics.sh --install` atualiza os módulos disponíveis com uma autenticação administrativa. Sair e entrar novamente é necessário para novos Snaps abertos pelo menu herdarem as opções atualizadas. Consulte [Flatpak](flatpak/README.md), [Snap](snap/README.md) e [Waydroid](waydroid/README.md) para validação, limites e reversão.
+
+O código no GitHub não inclui binários. A cópia do Desktop contém os pacotes compilados para este notebook e este kernel. Não instale em outro modelo/kernel; os instaladores conferem os identificadores.

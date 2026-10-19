@@ -116,3 +116,6 @@ Este projeto não é oficial da Samsung nem do Ubuntu. Faça backup e leia o scr
 ### Aceleração gráfica experimental
 
 [Instalação, verificação, limites e reversão dos gráficos](fixes/graphics/README.md). Patches i915 + Mesa para o modelo exato, com validação após reinício e kernel específico. Integração Vulkan do Sober e relato do usuário de jogo funcional: [instruções](fixes/sober/README.md).
+
+
+A correção gráfica também possui integração padrão [Flatpak](fixes/graphics/flatpak/README.md), [Snap](fixes/graphics/snap/README.md) e [Waydroid](fixes/graphics/waydroid/README.md), com bibliotecas próprias para Linux e Android. Veja os testes e limites em [VALIDATION](fixes/graphics/VALIDATION.md). A interface Android usa a GPU Intel; Avatar World1.226 permanece incompatível nesta instalação, com falha registrada na biblioteca libpairipcore.so do aplicativo.

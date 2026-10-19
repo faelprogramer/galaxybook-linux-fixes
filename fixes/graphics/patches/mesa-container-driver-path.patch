@@ -1,0 +1,37 @@
+--- a/src/loader/loader.c
++++ b/src/loader/loader.c
+@@ -866,6 +866,34 @@
+    if (search_paths == NULL)
+       search_paths = default_search_path;
+ 
++   /* Keep this guarded package relocatable between Flatpak and Snap.
++    * Their launchers can otherwise select an incompatible runtime Iris.
++    * The packaged software driver must also remain usable without a GPU.
++    */
++   char bundled_search_paths[PATH_MAX];
++   const char *lkf_bridge = os_get_option("LKF_EXPERIMENTAL_FIRMWARE_KMS");
++   if (__normal_user() && strcmp(lib_suffix, "_dri") == 0 &&
++       (strcmp(driver_name, "iris") == 0 ||
++        strcmp(driver_name, "swrast") == 0 ||
++        strcmp(driver_name, "kms_swrast") == 0)) {
++      Dl_info location;
++      if (dladdr((void *)loader_open_driver_lib, &location) && location.dli_fname) {
++         const char *name = location.dli_fname;
++         bool package_path =
++            strncmp(name, "/usr/lib/x86_64-linux-gnu/GL/host/lib/",
++                    strlen("/usr/lib/x86_64-linux-gnu/GL/host/lib/")) == 0 ||
++            strncmp(name, "/var/lib/snapd/lib/gl/",
++                    strlen("/var/lib/snapd/lib/gl/")) == 0;
++         const char *slash = strrchr(name, '/');
++         if (slash && (package_path || (lkf_bridge && strcmp(lkf_bridge, "1") == 0))) {
++            int n = snprintf(bundled_search_paths, sizeof(bundled_search_paths),
++                             "%.*s/dri:%s", (int)(slash - name), name, search_paths);
++            if (n > 0 && (size_t)n < sizeof(bundled_search_paths))
++               search_paths = bundled_search_paths;
++         }
++      }
++   }
++
+    void *driver = NULL;
+    const char *dl_error = NULL;
+    end = search_paths + strlen(search_paths);

@@ -67,6 +67,9 @@ meson setup "${setup[@]}" "$work/mesa-build" "$work/mesa-26.0.8" \
   -Dvideo-codecs=[] -Dgallium-va=disabled -Dgallium-rusticl=false \
   -Dgles1=disabled -Dgles2=enabled -Dbuild-tests=false
 ninja -C "$work/mesa-build" -j"$jobs"
+native=${XDG_CACHE_HOME:-$HOME/.cache}/galaxybook-lakefield/native-tools
+mkdir -p "$native"
+cp /usr/bin/glslangValidator "$work/mesa-build/src/compiler/clc/mesa_clc" "$work/mesa-build/src/compiler/spirv/vtn_bindgen2" "$native/"
 DESTDIR="$work/stage" meson install -C "$work/mesa-build"
 package=$work/package
 mkdir -p "$package/payload/bin"
@@ -89,7 +92,10 @@ icds=("$payload/mesa/share/vulkan/icd.d/"intel_icd*.json)
 printf '/opt/galaxybook-lakefield/mesa/share/vulkan/icd.d/%s\n' \
   "$(basename "${icds[0]}")" > "$payload/vulkan-icd-path"
 (cd "$payload" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
-if [[ ! -e $root/package && ! -L $root/package ]]; then ln -s -- "$package" "$root/package"; fi
+mkdir -p "$root/package"
+if [[ $(readlink -f "$root/package") != $(readlink -f "$package") ]]; then
+ cp -a "$package/." "$root/package/"
+fi
 printf '\nPacote compilado: %s\n'  "$package"
 printf 'Instalação: pkexec /usr/bin/bash %q %q\n' "$package/install.sh" "$USER"
 printf '%s\n' 'A instalação não reinicia a sessão atual. O primeiro arranque exige validação da imagem.'

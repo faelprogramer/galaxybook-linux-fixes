@@ -26,3 +26,18 @@ Sistema: Ubuntu 26.04.1, Linux 7.0.0-38-generic, GNOME 50.1 / Wayland; Mesa priv
 Controle nativo do painel DSI não produziu imagem utilizável e não integra esta solução. Um primeiro serviço de inicialização esperava o monitor de confirmação e atingia timeout; a versão publicada inicia esse monitor sem bloquear. Testes de aplicações feitos antes de reiniciar o compositor ainda podiam cair em llvmpipe; os resultados finais acima são da sessão posterior ao reinício.
 
 Não se afirma suporte upstream, certificação de toda a API, estabilidade prolongada, suspensão/retomada, vídeo acelerado ou compatibilidade com toda experiência Roblox. A integração separada do [Sober](../sober/README.md) foi depois validada com abertura normal e relato do usuário de que conseguiu jogar. Não há alegação de suporte a outra combinação de máquina/kernel. Não se publicam logs brutos com identificadores pessoais ou de sessões.
+
+
+## Integração adicional, noite de 18 para 19/10/2026
+
+- Linux compartilhado: Mesa 26.0.8, GLIBC máxima 2.34, GLIBCXX máxima 3.4.30, sem LLVM externo.
+- Flatpak: SDK22.08, GNOME50/25.08 e GNOME51/26.08 passaram shader GLES3/1024 pixels, GLX direto Intel e envio Vulkan com conferência do resultado 0x4c4b4632.
+- Sober: novo processo com lançamento padrão, Vulkan Intel 8086:9840, API1.4.335, swapchain1920x944.
+- Snap Firefox/core24 e Remmina/core22: os três testes gráficos passaram dentro de cada confinamento; Remmina requer o manifesto comum através de VK_ICD_FILENAMES.
+- Android13/API33 x86_64: teste isolado EGL/GLES3 passou; SurfaceFlinger identifica Intel Iris OpenGL ES3.2 após sobreposição e reinício.
+- Avatar World1.226: versão x86_64 instalada, processo carrega driver Iris; usuário relatou tela preta. Não validado como jogável.
+- Nova sessão do Ubuntu ainda necessária para limpar variáveis antigas nos processos do menu; não alegar teste posterior ao login enquanto não realizado.
+
+Não houve certificação CTS, teste de todas as aplicações Snap nem validação de versões futuras.
+
+Diagnóstico adicional do Avatar World: falhas repetidas SIGSEGV em libc strlen, chamada por libpairipcore.so do aplicativo, com aproximadamente um segundo de vida do processo. A pilha registrada não contém Iris/ANV/EGL; a causa interna da biblioteca do jogo não foi determinada. O jogo foi encerrado para interromper o ciclo; instalação e dados preservados. Usuário confirmou que o Waydroid em si ficou mais rápido. A aceleração da interface foi validada, a execução desse jogo não.
